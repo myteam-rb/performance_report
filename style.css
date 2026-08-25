@@ -103,6 +103,47 @@ body {
 }
 .reload-btn:hover { filter: brightness(1.08); }
 
+/* ---------- Category filter chips ---------- */
+.control-group.full-width { flex: 1 1 100%; }
+
+.chip-toolbar { display: flex; gap: 8px; margin-bottom: 8px; }
+
+.chip-action-btn {
+  border: 1px solid var(--border);
+  background: #fbfbff;
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--muted);
+  cursor: pointer;
+}
+.chip-action-btn:hover { background: #eef0ff; color: var(--accent); }
+
+.category-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.cat-chip {
+  --chip-color: #9ca3af;
+  border: 1.5px solid var(--chip-color);
+  background: #fff;
+  color: var(--chip-color);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all .12s ease;
+}
+
+.cat-chip.active {
+  background: var(--chip-color);
+  color: #fff;
+}
+
+.cat-chip:not(.active) { opacity: .55; }
+
 /* ---------- KPI cards ---------- */
 .kpi-grid {
   display: grid;
