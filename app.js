@@ -158,6 +158,10 @@ async function loadData() {
 
   if (typeof Chart !== "undefined" && !Chart._fontConfigured) {
     Chart.defaults.font.family = "'Plus Jakarta Sans', sans-serif";
+    if (typeof ChartDataLabels !== "undefined") {
+      Chart.register(ChartDataLabels);
+      Chart.defaults.set("plugins.datalabels", { display: false });
+    }
     Chart._fontConfigured = true;
   }
 
@@ -412,22 +416,41 @@ function allTaskNames(periods) {
 function renderStackedChart(canvasId, periods, keys, labels, field) {
   destroyChart(canvasId);
   const tasks = allTaskNames(periods);
-  const datasets = tasks.map((tkey) => ({
-    label: tkey.replace(/\b\w/g, (c) => c.toUpperCase()),
-    data: keys.map((k) => periods.get(k)[field].get(tkey) || 0),
-    backgroundColor: colorForTask(tkey),
-    stack: "stack1",
-    borderRadius: 3,
-    borderSkipped: false,
-  }));
+  const datasets = tasks.map((tkey, i) => {
+    const isTop = i === tasks.length - 1;
+    return {
+      label: tkey.replace(/\b\w/g, (c) => c.toUpperCase()),
+      data: keys.map((k) => periods.get(k)[field].get(tkey) || 0),
+      backgroundColor: colorForTask(tkey),
+      stack: "stack1",
+      borderRadius: 3,
+      borderSkipped: false,
+      datalabels: isTop
+        ? {
+            display: true,
+            anchor: "end",
+            align: "top",
+            clamp: true,
+            offset: 2,
+            color: "#1e2233",
+            font: { weight: "700", size: 10 },
+            formatter: (_, ctx) =>
+              ctx.chart.data.datasets
+                .reduce((sum, d) => sum + (d.data[ctx.dataIndex] || 0), 0)
+                .toLocaleString(),
+          }
+        : undefined,
+    };
+  });
 
   charts[canvasId] = new Chart(document.getElementById(canvasId), {
     type: "bar",
     data: { labels, datasets },
     options: baseOptions({
+      layout: { padding: { top: 18 } },
       scales: {
         x: { stacked: true, grid: { display: false } },
-        y: { stacked: true, beginAtZero: true },
+        y: { stacked: true, beginAtZero: true, grace: "8%" },
       },
     }),
   });
