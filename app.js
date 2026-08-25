@@ -15,7 +15,7 @@ const CONFIG = {
   // "Anyone with the link" (Viewer) thì export CSV mới truy cập được.
   // Nếu file có nhiều tab, thêm &gid=<sheet_gid> vào cuối URL.
   sheetId: "18CXE1LS_CgRL6jOm-Uib5jk4WrhXs4IA",
-  gid: "", // để trống = tab đầu tiên
+  gid: "2073632175", // để trống = tab đầu tiên
 
   // Tên các task dùng để tính "Daily Process Time per Docket (Mins)"
   // = SUM(Avg. Process Time) cho các task này, theo từng ngày/kỳ.
