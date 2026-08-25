@@ -414,6 +414,11 @@ function allTaskNames(periods) {
   return Array.from(set);
 }
 
+function updateCategoryCount(total) {
+  const el = document.getElementById("categoryCount");
+  if (el && SELECTED_TASKS) el.textContent = `(${SELECTED_TASKS.size}/${total} đang chọn)`;
+}
+
 function buildCategoryFilterUI() {
   const taskMap = new Map(); // normalized key -> original display label
   RAW_ROWS.forEach((r) => {
@@ -439,11 +444,13 @@ function buildCategoryFilterUI() {
       if (SELECTED_TASKS.has(key)) SELECTED_TASKS.delete(key);
       else SELECTED_TASKS.add(key);
       chip.classList.toggle("active");
+      updateCategoryCount(taskMap.size);
       renderAll();
     });
     container.appendChild(chip);
   });
 
+  updateCategoryCount(taskMap.size);
   section.style.display = taskMap.size ? "block" : "none";
 }
 
@@ -525,17 +532,21 @@ function initControls() {
 
   document.getElementById("selectAllCats").addEventListener("click", () => {
     if (!SELECTED_TASKS) return;
-    document.querySelectorAll(".cat-chip").forEach((chip) => {
+    const chips = document.querySelectorAll(".cat-chip");
+    chips.forEach((chip) => {
       SELECTED_TASKS.add(normalizeTaskName(chip.textContent));
       chip.classList.add("active");
     });
+    updateCategoryCount(chips.length);
     renderAll();
   });
 
   document.getElementById("clearAllCats").addEventListener("click", () => {
     if (!SELECTED_TASKS) return;
     SELECTED_TASKS.clear();
-    document.querySelectorAll(".cat-chip").forEach((chip) => chip.classList.remove("active"));
+    const chips = document.querySelectorAll(".cat-chip");
+    chips.forEach((chip) => chip.classList.remove("active"));
+    updateCategoryCount(chips.length);
     renderAll();
   });
 }
