@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Performance Dashboard</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+  <header class="topbar">
+    <h1>Performance Dashboard</h1>
+    <div class="status" id="statusLine">Đang tải dữ liệu…</div>
+  </header>
+
+  <section class="controls">
+    <div class="control-group">
+      <label>Basis</label>
+      <div class="segmented" id="basisSelector">
+        <button class="seg-btn active" data-basis="daily">Daily</button>
+        <button class="seg-btn" data-basis="monthly">Monthly</button>
+        <button class="seg-btn" data-basis="yearly">Yearly</button>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <label for="startDate">From</label>
+      <input type="date" id="startDate" />
+    </div>
+
+    <div class="control-group">
+      <label for="endDate">To</label>
+      <input type="date" id="endDate" />
+    </div>
+
+    <div class="control-group">
+      <button id="reloadBtn" class="reload-btn">⟳ Reload data</button>
+    </div>
+  </section>
+
+  <section class="kpi-grid">
+    <div class="kpi-card">
+      <div class="kpi-label">Avg Mins Taken / Docket</div>
+      <div class="kpi-value" id="kpiAvgMins">–</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Total Dockets Completed</div>
+      <div class="kpi-value" id="kpiDockets">–</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Total Time Taken (Hrs)</div>
+      <div class="kpi-value" id="kpiTimeTaken">–</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Total Downtime (Hrs)</div>
+      <div class="kpi-value" id="kpiDowntime">–</div>
+    </div>
+  </section>
+
+  <section class="chart-grid">
+    <div class="chart-card">
+      <h3>Completed Dockets Qty &amp; Mins Taken by Day</h3>
+      <canvas id="chart1"></canvas>
+    </div>
+    <div class="chart-card">
+      <h3>Daily Downtime (Mins)</h3>
+      <canvas id="chart2"></canvas>
+    </div>
+    <div class="chart-card">
+      <h3>Avg Process Time (Mins) by Category</h3>
+      <canvas id="chart3"></canvas>
+    </div>
+    <div class="chart-card wide">
+      <h3>Completed Qty by Category</h3>
+      <canvas id="chart4"></canvas>
+    </div>
+    <div class="chart-card wide">
+      <h3>Time Taken by Category (Mins)</h3>
+      <canvas id="chart5"></canvas>
+    </div>
+  </section>
+
+  <footer class="foot-note">
+    Nguồn dữ liệu: Google Sheet (xem cấu hình trong <code>js/app.js</code> / <code>CONFIG.csvUrl</code>).
+  </footer>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

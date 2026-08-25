@@ -1,0 +1,423 @@
+/* =========================================================================
+   Performance Dashboard
+   Đọc dữ liệu từ Google Sheet (export CSV) và vẽ 5 biểu đồ + 4 KPI card.
+
+   Cột dữ liệu nguồn (theo file gốc):
+     A: Working Day
+     B: Task Name
+     C: Processed Quantity
+     D: Process Time (minute)
+     E: Avg. Process Time (minute)
+   ========================================================================= */
+
+const CONFIG = {
+  // Google Sheet ID lấy từ URL chia sẻ. Sheet phải để chế độ chia sẻ
+  // "Anyone with the link" (Viewer) thì export CSV mới truy cập được.
+  // Nếu file có nhiều tab, thêm &gid=<sheet_gid> vào cuối URL.
+  sheetId: "18CXE1LS_CgRL6jOm-Uib5jk4WrhXs4IA",
+  gid: "", // để trống = tab đầu tiên
+
+  // Tên các task dùng để tính "Daily Process Time per Docket (Mins)"
+  // = SUM(Avg. Process Time) cho các task này, theo từng ngày/kỳ.
+  avgTimeTaskList: [
+    "Download submitted dockets",
+    "Process BOOKING Timeline & charges",
+    "Update Focus Timesheet file",
+    "Approve timesheets - Dockets",
+  ],
+
+  // Task đại diện cho "dockets đã xử lý" (chart 1 cột + KPI Total Dockets Completed)
+  docketTaskName: "Download submitted dockets",
+
+  // Task đại diện cho downtime (chart 2 + KPI Total Downtime)
+  downtimeTaskName: "Downtime",
+
+  // Danh sách category dùng cho chart 3 (Avg Process Time by Category)
+  chart3TaskList: [
+    "Approve timesheets - Dockets",
+    "Invoice charges",
+    "Publish daily working schedule",
+    "Update Focus Timesheet file",
+    "Update Jordan Access Timesheet file",
+  ],
+
+  colors: [
+    "#1a237e", "#d32f2f", "#fdd835", "#8bc34a", "#26c6da",
+    "#757575", "#e91e63", "#f4a3c2", "#7b1fa2", "#ff9800",
+    "#00897b", "#5c6bc0", "#c0ca33", "#6d4c41", "#039be5",
+  ],
+};
+
+CONFIG.csvUrl = CONFIG.gid
+  ? `https://docs.google.com/spreadsheets/d/${CONFIG.sheetId}/export?format=csv&gid=${CONFIG.gid}`
+  : `https://docs.google.com/spreadsheets/d/${CONFIG.sheetId}/export?format=csv`;
+
+// ---------------------------------------------------------------------------
+// State
+// ---------------------------------------------------------------------------
+let RAW_ROWS = [];      // parsed rows: {date: Date, task, qty, time, avg}
+let BASIS = "daily";    // daily | monthly | yearly
+let charts = {};        // Chart.js instances keyed by canvas id
+const taskColorMap = new Map();
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+function normalizeTaskName(s) {
+  return (s || "")
+    .replace(/[\u2012\u2013\u2014\u2015]/g, "-") // en/em dash -> hyphen
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function colorForTask(taskName) {
+  const key = normalizeTaskName(taskName);
+  if (!taskColorMap.has(key)) {
+    taskColorMap.set(key, CONFIG.colors[taskColorMap.size % CONFIG.colors.length]);
+  }
+  return taskColorMap.get(key);
+}
+
+function pad2(n) { return String(n).padStart(2, "0"); }
+
+// Parse a date value coming from the sheet. Handles ISO (YYYY-MM-DD),
+// US format (M/D/YYYY) and native-Date-parseable strings.
+function parseSheetDate(value) {
+  if (!value) return null;
+  const v = String(value).trim();
+
+  let m = v.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
+
+  m = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (m) {
+    // Sheet sample data (e.g. 11/26/2025) is Month/Day/Year.
+    return new Date(+m[3], +m[1] - 1, +m[2]);
+  }
+
+  const d = new Date(v);
+  return isNaN(d) ? null : d;
+}
+
+function periodKey(date, basis) {
+  const y = date.getFullYear(), m = pad2(date.getMonth() + 1), d = pad2(date.getDate());
+  if (basis === "yearly") return `${y}`;
+  if (basis === "monthly") return `${y}-${m}`;
+  return `${y}-${m}-${d}`;
+}
+
+function periodLabel(key, basis) {
+  if (basis === "yearly") return key;
+  if (basis === "monthly") {
+    const [y, m] = key.split("-");
+    return `${m}/${y}`;
+  }
+  const [y, m, d] = key.split("-");
+  return `${d}/${m}`;
+}
+
+function sortedPeriodKeys(keys) {
+  return Array.from(keys).sort();
+}
+
+// ---------------------------------------------------------------------------
+// Data loading
+// ---------------------------------------------------------------------------
+async function loadData() {
+  const statusEl = document.getElementById("statusLine");
+  statusEl.textContent = "Đang tải dữ liệu…";
+
+  try {
+    const res = await fetch(CONFIG.csvUrl);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const csvText = await res.text();
+
+    const parsed = Papa.parse(csvText, { skipEmptyLines: true });
+    const rows = parsed.data;
+
+    // Detect header row (first row) then map by position: A,B,C,D,E
+    RAW_ROWS = rows.slice(1)
+      .map((r) => {
+        const date = parseSheetDate(r[0]);
+        const task = (r[1] || "").trim();
+        const qty = parseFloat(r[2]) || 0;
+        const time = parseFloat(r[3]) || 0;
+        const avg = parseFloat(r[4]) || 0;
+        return { date, task, qty, time, avg };
+      })
+      .filter((r) => r.date && r.task);
+
+    if (RAW_ROWS.length === 0) throw new Error("Không đọc được dữ liệu hợp lệ từ sheet.");
+
+    initDateRangeInputs();
+    statusEl.textContent = `Đã tải ${RAW_ROWS.length} dòng · cập nhật lúc ${new Date().toLocaleTimeString()}`;
+    renderAll();
+  } catch (err) {
+    console.error(err);
+    statusEl.innerHTML =
+      `Lỗi tải dữ liệu: ${err.message}. Kiểm tra sheet đã bật chia sẻ "Anyone with the link" ` +
+      `và <code>CONFIG.sheetId</code> trong js/app.js.`;
+  }
+}
+
+function initDateRangeInputs() {
+  const startEl = document.getElementById("startDate");
+  const endEl = document.getElementById("endDate");
+  if (startEl.value && endEl.value) return; // already set by user
+
+  const dates = RAW_ROWS.map((r) => r.date).sort((a, b) => a - b);
+  const min = dates[0], max = dates[dates.length - 1];
+  startEl.value = toInputDate(min);
+  endEl.value = toInputDate(max);
+}
+
+function toInputDate(d) {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+function getSelectedRange() {
+  const startEl = document.getElementById("startDate");
+  const endEl = document.getElementById("endDate");
+  const start = startEl.value ? new Date(startEl.value + "T00:00:00") : null;
+  const end = endEl.value ? new Date(endEl.value + "T23:59:59") : null;
+  return { start, end };
+}
+
+function filteredRows() {
+  const { start, end } = getSelectedRange();
+  return RAW_ROWS.filter((r) => (!start || r.date >= start) && (!end || r.date <= end));
+}
+
+// ---------------------------------------------------------------------------
+// Aggregation
+// ---------------------------------------------------------------------------
+function aggregate(rows, basis) {
+  // periodTotals: key -> { avgSumByTask: Map, qtySumByTask: Map, timeSumByTask: Map }
+  const periods = new Map();
+
+  rows.forEach((r) => {
+    const key = periodKey(r.date, basis);
+    if (!periods.has(key)) {
+      periods.set(key, { avgByTask: new Map(), qtyByTask: new Map(), timeByTask: new Map() });
+    }
+    const bucket = periods.get(key);
+    const tkey = normalizeTaskName(r.task);
+
+    bucket.avgByTask.set(tkey, (bucket.avgByTask.get(tkey) || 0) + r.avg);
+    bucket.qtyByTask.set(tkey, (bucket.qtyByTask.get(tkey) || 0) + r.qty);
+    bucket.timeByTask.set(tkey, (bucket.timeByTask.get(tkey) || 0) + r.time);
+  });
+
+  return periods;
+}
+
+function sumForTaskList(bucketMap, taskList) {
+  const target = new Set(taskList.map(normalizeTaskName));
+  let sum = 0;
+  bucketMap.forEach((val, key) => { if (target.has(key)) sum += val; });
+  return sum;
+}
+
+// ---------------------------------------------------------------------------
+// KPIs
+// ---------------------------------------------------------------------------
+function renderKPIs(rows, periods, keys, basis) {
+  // Avg Mins Taken / Docket = average of "Daily Process Time per Docket"
+  // (sum of Avg.Process Time for the 4 core tasks) across the selected periods.
+  const perPeriodDocketTime = keys.map((k) => sumForTaskList(periods.get(k).avgByTask, CONFIG.avgTimeTaskList));
+  const avgMins = perPeriodDocketTime.length
+    ? perPeriodDocketTime.reduce((a, b) => a + b, 0) / perPeriodDocketTime.length
+    : 0;
+
+  // Total Dockets Completed = sum of Processed Quantity where task = docketTaskName
+  const docketKey = normalizeTaskName(CONFIG.docketTaskName);
+  const totalDockets = rows
+    .filter((r) => normalizeTaskName(r.task) === docketKey)
+    .reduce((a, r) => a + r.qty, 0);
+
+  // Total Time Taken (Hrs) = sum(Process Time) for all tasks except Downtime, /60
+  const downtimeKey = normalizeTaskName(CONFIG.downtimeTaskName);
+  const totalTimeMins = rows
+    .filter((r) => normalizeTaskName(r.task) !== downtimeKey)
+    .reduce((a, r) => a + r.time, 0);
+
+  // Total Downtime (Hrs) = sum(Process Time) where task = Downtime, /60
+  const totalDowntimeMins = rows
+    .filter((r) => normalizeTaskName(r.task) === downtimeKey)
+    .reduce((a, r) => a + r.time, 0);
+
+  document.getElementById("kpiAvgMins").textContent = avgMins.toFixed(2);
+  document.getElementById("kpiDockets").textContent = totalDockets.toLocaleString();
+  document.getElementById("kpiTimeTaken").textContent = (totalTimeMins / 60).toFixed(2);
+  document.getElementById("kpiDowntime").textContent = (totalDowntimeMins / 60).toFixed(2);
+}
+
+// ---------------------------------------------------------------------------
+// Chart rendering
+// ---------------------------------------------------------------------------
+function destroyChart(id) {
+  if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+}
+
+function baseOptions(extra = {}) {
+  return Object.assign({
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: { legend: { position: "bottom", labels: { boxWidth: 10, font: { size: 10 } } } },
+    scales: { x: { grid: { display: false } } },
+  }, extra);
+}
+
+function renderChart1(periods, keys, labels) {
+  const docketKey = normalizeTaskName(CONFIG.docketTaskName);
+  const qty = keys.map((k) => periods.get(k).qtyByTask.get(docketKey) || 0);
+  const mins = keys.map((k) => sumForTaskList(periods.get(k).avgByTask, CONFIG.avgTimeTaskList));
+
+  destroyChart("chart1");
+  charts.chart1 = new Chart(document.getElementById("chart1"), {
+    data: {
+      labels,
+      datasets: [
+        {
+          type: "bar",
+          label: "Daily Processed Dockets",
+          data: qty,
+          backgroundColor: "#f5a623",
+          yAxisID: "y",
+          order: 2,
+        },
+        {
+          type: "line",
+          label: "Daily Process Time per Docket (Mins)",
+          data: mins,
+          borderColor: "#8bc34a",
+          backgroundColor: "#8bc34a",
+          tension: 0.3,
+          yAxisID: "y1",
+          order: 1,
+        },
+      ],
+    },
+    options: baseOptions({
+      scales: {
+        x: { grid: { display: false } },
+        y: { beginAtZero: true, position: "left", title: { display: false } },
+        y1: { beginAtZero: true, position: "right", grid: { drawOnChartArea: false } },
+      },
+    }),
+  });
+}
+
+function renderChart2(periods, keys, labels) {
+  const downtimeKey = normalizeTaskName(CONFIG.downtimeTaskName);
+  const mins = keys.map((k) => periods.get(k).timeByTask.get(downtimeKey) || 0);
+
+  destroyChart("chart2");
+  charts.chart2 = new Chart(document.getElementById("chart2"), {
+    type: "line",
+    data: {
+      labels,
+      datasets: [{
+        label: "Downtime (mins)",
+        data: mins,
+        borderColor: "#e91e8f",
+        backgroundColor: "rgba(233,30,143,0.25)",
+        fill: true,
+        tension: 0.3,
+      }],
+    },
+    options: baseOptions({ scales: { x: { grid: { display: false } }, y: { beginAtZero: true } } }),
+  });
+}
+
+function renderChart3(periods, keys, labels) {
+  destroyChart("chart3");
+  const datasets = CONFIG.chart3TaskList.map((taskName) => {
+    const tkey = normalizeTaskName(taskName);
+    return {
+      label: taskName,
+      data: keys.map((k) => periods.get(k).avgByTask.get(tkey) || 0),
+      backgroundColor: colorForTask(taskName),
+    };
+  });
+
+  charts.chart3 = new Chart(document.getElementById("chart3"), {
+    type: "bar",
+    data: { labels, datasets },
+    options: baseOptions({
+      scales: {
+        x: { stacked: false, grid: { display: false } },
+        y: { stacked: false, beginAtZero: true },
+      },
+    }),
+  });
+}
+
+function allTaskNames(periods) {
+  const set = new Set();
+  periods.forEach((bucket) => {
+    bucket.qtyByTask.forEach((_, k) => set.add(k));
+    bucket.timeByTask.forEach((_, k) => set.add(k));
+  });
+  return Array.from(set);
+}
+
+function renderStackedChart(canvasId, periods, keys, labels, field) {
+  destroyChart(canvasId);
+  const tasks = allTaskNames(periods);
+  const datasets = tasks.map((tkey) => ({
+    label: tkey.replace(/\b\w/g, (c) => c.toUpperCase()),
+    data: keys.map((k) => periods.get(k)[field].get(tkey) || 0),
+    backgroundColor: colorForTask(tkey),
+    stack: "stack1",
+  }));
+
+  charts[canvasId] = new Chart(document.getElementById(canvasId), {
+    type: "bar",
+    data: { labels, datasets },
+    options: baseOptions({
+      scales: {
+        x: { stacked: true, grid: { display: false } },
+        y: { stacked: true, beginAtZero: true },
+      },
+    }),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Orchestration
+// ---------------------------------------------------------------------------
+function renderAll() {
+  const rows = filteredRows();
+  const periods = aggregate(rows, BASIS);
+  const keys = sortedPeriodKeys(periods.keys());
+  const labels = keys.map((k) => periodLabel(k, BASIS));
+
+  renderKPIs(rows, periods, keys, BASIS);
+  renderChart1(periods, keys, labels);
+  renderChart2(periods, keys, labels);
+  renderChart3(periods, keys, labels);
+  renderStackedChart("chart4", periods, keys, labels, "qtyByTask");
+  renderStackedChart("chart5", periods, keys, labels, "timeByTask");
+}
+
+function initControls() {
+  document.querySelectorAll(".seg-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".seg-btn").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      BASIS = btn.dataset.basis;
+      renderAll();
+    });
+  });
+
+  document.getElementById("startDate").addEventListener("change", renderAll);
+  document.getElementById("endDate").addEventListener("change", renderAll);
+  document.getElementById("reloadBtn").addEventListener("click", loadData);
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  initControls();
+  loadData();
+});
