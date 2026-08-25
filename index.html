@@ -43,17 +43,6 @@
     </div>
   </section>
 
-  <section class="controls category-filter" id="categoryFilterSection" style="display:none;">
-    <div class="control-group full-width">
-      <label>Category filter (chart Completed Qty &amp; Time Taken)</label>
-      <div class="chip-toolbar">
-        <button type="button" id="selectAllCats" class="chip-action-btn">Chọn tất cả</button>
-        <button type="button" id="clearAllCats" class="chip-action-btn">Bỏ chọn</button>
-      </div>
-      <div class="category-chips" id="categoryChips"></div>
-    </div>
-  </section>
-
   <section class="kpi-grid">
     <div class="kpi-card kpi-indigo">
       <div class="kpi-icon">⏱️</div>
@@ -98,6 +87,17 @@
       <h3>Avg Process Time (Mins) by Category</h3>
       <canvas id="chart3"></canvas>
     </div>
+    <div class="category-filter-panel" id="categoryFilterSection" style="display:none;">
+      <div class="cf-header">
+        <span class="cf-title">Category filter — áp dụng cho 2 chart bên dưới</span>
+        <div class="chip-toolbar">
+          <button type="button" id="selectAllCats" class="chip-action-btn">Chọn tất cả</button>
+          <button type="button" id="clearAllCats" class="chip-action-btn">Bỏ chọn</button>
+        </div>
+      </div>
+      <div class="category-chips" id="categoryChips"></div>
+    </div>
+
     <div class="chart-card wide accent-emerald">
       <h3>Completed Qty by Category</h3>
       <canvas id="chart4"></canvas>
