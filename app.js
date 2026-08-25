@@ -39,11 +39,6 @@ const CONFIG = {
     "Update Jordan Access Timesheet file",
   ],
 
-  colors: [
-    "#4e79a7", "#f28e2b", "#e15759", "#59a14f", "#b07aa1",
-    "#76b7b2", "#edc948", "#ff9da7", "#9c755f", "#3b82f6",
-    "#e07b39", "#499894", "#d37295", "#8cd17d", "#7c3aed",
-  ],
 };
 
 CONFIG.csvUrl = CONFIG.gid
@@ -73,7 +68,11 @@ function normalizeTaskName(s) {
 function colorForTask(taskName) {
   const key = normalizeTaskName(taskName);
   if (!taskColorMap.has(key)) {
-    taskColorMap.set(key, CONFIG.colors[taskColorMap.size % CONFIG.colors.length]);
+    const i = taskColorMap.size;
+    const hue = (i * 137.508) % 360;           // golden angle -> max hue spread
+    const sat = 62 + (i % 3) * 8;              // 62 / 70 / 78, cycling
+    const light = 46 + ((i + 1) % 3) * 7;      // 46 / 53 / 60, cycling
+    taskColorMap.set(key, `hsl(${hue.toFixed(1)} ${sat}% ${light}%)`);
   }
   return taskColorMap.get(key);
 }
