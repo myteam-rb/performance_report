@@ -40,9 +40,9 @@ const CONFIG = {
   ],
 
   colors: [
-    "#1a237e", "#d32f2f", "#fdd835", "#8bc34a", "#26c6da",
-    "#757575", "#e91e63", "#f4a3c2", "#7b1fa2", "#ff9800",
-    "#00897b", "#5c6bc0", "#c0ca33", "#6d4c41", "#039be5",
+    "#6366f1", "#f43f5e", "#f59e0b", "#10b981", "#06b6d4",
+    "#8b5cf6", "#ec4899", "#84cc16", "#f97316", "#14b8a6",
+    "#3b82f6", "#a855f7", "#eab308", "#e11d48", "#22c55e",
   ],
 };
 
@@ -155,6 +155,13 @@ function sortedPeriodKeys(keys) {
 async function loadData() {
   const statusEl = document.getElementById("statusLine");
   statusEl.textContent = "Đang tải dữ liệu…";
+
+  if (typeof Chart !== "undefined" && typeof ChartDataLabels !== "undefined" && !Chart._datalabelsRegistered) {
+    Chart.register(ChartDataLabels);
+    Chart.defaults.set("plugins.datalabels", { display: false });
+    Chart.defaults.font.family = "'Plus Jakarta Sans', sans-serif";
+    Chart._datalabelsRegistered = true;
+  }
 
   if (typeof Papa === "undefined" || typeof Chart === "undefined") {
     statusEl.innerHTML =
@@ -317,19 +324,36 @@ function renderChart1(periods, keys, labels) {
           type: "bar",
           label: "Daily Processed Dockets",
           data: qty,
-          backgroundColor: "#f5a623",
+          backgroundColor: "#f59e0b",
+          borderRadius: 6,
           yAxisID: "y",
           order: 2,
+          datalabels: {
+            display: true,
+            anchor: "end",
+            align: "top",
+            color: "#b45309",
+            font: { weight: "700", size: 10 },
+          },
         },
         {
           type: "line",
           label: "Daily Process Time per Docket (Mins)",
           data: mins,
-          borderColor: "#8bc34a",
-          backgroundColor: "#8bc34a",
+          borderColor: "#10b981",
+          backgroundColor: "#10b981",
+          pointRadius: 4,
+          pointBackgroundColor: "#10b981",
           tension: 0.3,
           yAxisID: "y1",
           order: 1,
+          datalabels: {
+            display: true,
+            align: "bottom",
+            color: "#059669",
+            font: { weight: "700", size: 10 },
+            formatter: (v) => v.toFixed(1),
+          },
         },
       ],
     },
@@ -355,10 +379,18 @@ function renderChart2(periods, keys, labels) {
       datasets: [{
         label: "Downtime (mins)",
         data: mins,
-        borderColor: "#e91e8f",
-        backgroundColor: "rgba(233,30,143,0.25)",
+        borderColor: "#f43f5e",
+        backgroundColor: "rgba(244,63,94,0.18)",
+        pointRadius: 4,
+        pointBackgroundColor: "#f43f5e",
         fill: true,
-        tension: 0.3,
+        tension: 0.35,
+        datalabels: {
+          display: (ctx) => ctx.dataset.data[ctx.dataIndex] > 0,
+          align: "top",
+          color: "#e11d48",
+          font: { weight: "700", size: 10 },
+        },
       }],
     },
     options: baseOptions({ scales: { x: { grid: { display: false } }, y: { beginAtZero: true } } }),
@@ -369,10 +401,20 @@ function renderChart3(periods, keys, labels) {
   destroyChart("chart3");
   const datasets = CONFIG.chart3TaskList.map((taskName) => {
     const tkey = normalizeTaskName(taskName);
+    const color = colorForTask(taskName);
     return {
       label: taskName,
       data: keys.map((k) => periods.get(k).avgByTask.get(tkey) || 0),
-      backgroundColor: colorForTask(taskName),
+      backgroundColor: color,
+      borderRadius: 4,
+      datalabels: {
+        display: (ctx) => ctx.dataset.data[ctx.dataIndex] >= 1,
+        anchor: "end",
+        align: "top",
+        color,
+        font: { weight: "700", size: 8 },
+        formatter: (v) => v.toFixed(1),
+      },
     };
   });
 
@@ -405,6 +447,8 @@ function renderStackedChart(canvasId, periods, keys, labels, field) {
     data: keys.map((k) => periods.get(k)[field].get(tkey) || 0),
     backgroundColor: colorForTask(tkey),
     stack: "stack1",
+    borderRadius: 3,
+    borderSkipped: false,
   }));
 
   charts[canvasId] = new Chart(document.getElementById(canvasId), {
