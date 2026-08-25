@@ -156,11 +156,9 @@ async function loadData() {
   const statusEl = document.getElementById("statusLine");
   statusEl.textContent = "Đang tải dữ liệu…";
 
-  if (typeof Chart !== "undefined" && typeof ChartDataLabels !== "undefined" && !Chart._datalabelsRegistered) {
-    Chart.register(ChartDataLabels);
-    Chart.defaults.set("plugins.datalabels", { display: false });
+  if (typeof Chart !== "undefined" && !Chart._fontConfigured) {
     Chart.defaults.font.family = "'Plus Jakarta Sans', sans-serif";
-    Chart._datalabelsRegistered = true;
+    Chart._fontConfigured = true;
   }
 
   if (typeof Papa === "undefined" || typeof Chart === "undefined") {
@@ -328,13 +326,6 @@ function renderChart1(periods, keys, labels) {
           borderRadius: 6,
           yAxisID: "y",
           order: 2,
-          datalabels: {
-            display: true,
-            anchor: "end",
-            align: "top",
-            color: "#b45309",
-            font: { weight: "700", size: 10 },
-          },
         },
         {
           type: "line",
@@ -347,13 +338,6 @@ function renderChart1(periods, keys, labels) {
           tension: 0.3,
           yAxisID: "y1",
           order: 1,
-          datalabels: {
-            display: true,
-            align: "bottom",
-            color: "#059669",
-            font: { weight: "700", size: 10 },
-            formatter: (v) => v.toFixed(1),
-          },
         },
       ],
     },
@@ -385,12 +369,6 @@ function renderChart2(periods, keys, labels) {
         pointBackgroundColor: "#f43f5e",
         fill: true,
         tension: 0.35,
-        datalabels: {
-          display: (ctx) => ctx.dataset.data[ctx.dataIndex] > 0,
-          align: "top",
-          color: "#e11d48",
-          font: { weight: "700", size: 10 },
-        },
       }],
     },
     options: baseOptions({ scales: { x: { grid: { display: false } }, y: { beginAtZero: true } } }),
@@ -407,14 +385,6 @@ function renderChart3(periods, keys, labels) {
       data: keys.map((k) => periods.get(k).avgByTask.get(tkey) || 0),
       backgroundColor: color,
       borderRadius: 4,
-      datalabels: {
-        display: (ctx) => ctx.dataset.data[ctx.dataIndex] >= 1,
-        anchor: "end",
-        align: "top",
-        color,
-        font: { weight: "700", size: 8 },
-        formatter: (v) => v.toFixed(1),
-      },
     };
   });
 
