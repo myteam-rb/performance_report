@@ -156,6 +156,14 @@ async function loadData() {
   const statusEl = document.getElementById("statusLine");
   statusEl.textContent = "Đang tải dữ liệu…";
 
+  if (typeof Papa === "undefined" || typeof Chart === "undefined") {
+    statusEl.innerHTML =
+      "Trình duyệt/tiện ích mở rộng đang chặn thư viện Chart.js hoặc PapaParse tải từ CDN " +
+      "(ví dụ: Tracking Prevention, AdBlock). Hãy tắt chặn cho trang này rồi bấm Reload data, " +
+      "hoặc thử trình duyệt/chế độ khác.";
+    return;
+  }
+
   try {
     const res = await fetch(CONFIG.csvUrl);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
