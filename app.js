@@ -40,9 +40,9 @@ const CONFIG = {
   ],
 
   colors: [
-    "#6366f1", "#f43f5e", "#f59e0b", "#10b981", "#06b6d4",
-    "#8b5cf6", "#ec4899", "#84cc16", "#f97316", "#14b8a6",
-    "#3b82f6", "#a855f7", "#eab308", "#e11d48", "#22c55e",
+    "#4e79a7", "#f28e2b", "#e15759", "#59a14f", "#b07aa1",
+    "#76b7b2", "#edc948", "#ff9da7", "#9c755f", "#3b82f6",
+    "#e07b39", "#499894", "#d37295", "#8cd17d", "#7c3aed",
   ],
 };
 
@@ -56,6 +56,7 @@ CONFIG.csvUrl = CONFIG.gid
 let RAW_ROWS = [];      // parsed rows: {date: Date, task, qty, time, avg}
 let BASIS = "daily";    // daily | monthly | yearly
 let charts = {};        // Chart.js instances keyed by canvas id
+let SELECTED_TASKS = null; // Set of normalized task keys shown in chart4/5; null = all
 const taskColorMap = new Map();
 
 // ---------------------------------------------------------------------------
@@ -200,6 +201,7 @@ async function loadData() {
     if (RAW_ROWS.length === 0) throw new Error("Không đọc được dòng dữ liệu hợp lệ nào từ sheet.");
 
     initDateRangeInputs();
+    buildCategoryFilterUI();
     statusEl.textContent = `Đã tải ${RAW_ROWS.length} dòng · cập nhật lúc ${new Date().toLocaleTimeString()}`;
     renderAll();
   } catch (err) {
@@ -413,9 +415,44 @@ function allTaskNames(periods) {
   return Array.from(set);
 }
 
+function buildCategoryFilterUI() {
+  const taskMap = new Map(); // normalized key -> original display label
+  RAW_ROWS.forEach((r) => {
+    const key = normalizeTaskName(r.task);
+    if (!taskMap.has(key)) taskMap.set(key, r.task);
+  });
+
+  if (SELECTED_TASKS === null) {
+    SELECTED_TASKS = new Set(taskMap.keys()); // default: everything shown
+  }
+
+  const section = document.getElementById("categoryFilterSection");
+  const container = document.getElementById("categoryChips");
+  container.innerHTML = "";
+
+  taskMap.forEach((label, key) => {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "cat-chip" + (SELECTED_TASKS.has(key) ? " active" : "");
+    chip.textContent = label;
+    chip.style.setProperty("--chip-color", colorForTask(label));
+    chip.addEventListener("click", () => {
+      if (SELECTED_TASKS.has(key)) SELECTED_TASKS.delete(key);
+      else SELECTED_TASKS.add(key);
+      chip.classList.toggle("active");
+      renderAll();
+    });
+    container.appendChild(chip);
+  });
+
+  section.style.display = taskMap.size ? "block" : "none";
+}
+
 function renderStackedChart(canvasId, periods, keys, labels, field) {
   destroyChart(canvasId);
-  const tasks = allTaskNames(periods);
+  let tasks = allTaskNames(periods);
+  if (SELECTED_TASKS) tasks = tasks.filter((t) => SELECTED_TASKS.has(t));
+
   const datasets = tasks.map((tkey, i) => {
     const isTop = i === tasks.length - 1;
     return {
@@ -486,6 +523,22 @@ function initControls() {
   document.getElementById("startDate").addEventListener("change", renderAll);
   document.getElementById("endDate").addEventListener("change", renderAll);
   document.getElementById("reloadBtn").addEventListener("click", loadData);
+
+  document.getElementById("selectAllCats").addEventListener("click", () => {
+    if (!SELECTED_TASKS) return;
+    document.querySelectorAll(".cat-chip").forEach((chip) => {
+      SELECTED_TASKS.add(normalizeTaskName(chip.textContent));
+      chip.classList.add("active");
+    });
+    renderAll();
+  });
+
+  document.getElementById("clearAllCats").addEventListener("click", () => {
+    if (!SELECTED_TASKS) return;
+    SELECTED_TASKS.clear();
+    document.querySelectorAll(".cat-chip").forEach((chip) => chip.classList.remove("active"));
+    renderAll();
+  });
 }
 
 document.addEventListener("DOMContentLoaded", () => {
