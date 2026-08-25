@@ -4,13 +4,18 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Performance Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
-  <header class="topbar">
-    <h1>Performance Dashboard</h1>
-    <div class="status" id="statusLine">Đang tải dữ liệu…</div>
+  <header class="hero">
+    <div class="hero-text">
+      <h1>Performance Dashboard</h1>
+      <div class="status" id="statusLine">Đang tải dữ liệu…</div>
+    </div>
   </header>
 
   <section class="controls">
@@ -39,42 +44,54 @@
   </section>
 
   <section class="kpi-grid">
-    <div class="kpi-card">
-      <div class="kpi-label">Avg Mins Taken / Docket</div>
-      <div class="kpi-value" id="kpiAvgMins">–</div>
+    <div class="kpi-card kpi-indigo">
+      <div class="kpi-icon">⏱️</div>
+      <div class="kpi-body">
+        <div class="kpi-label">Avg Mins Taken / Docket</div>
+        <div class="kpi-value" id="kpiAvgMins">–</div>
+      </div>
     </div>
-    <div class="kpi-card">
-      <div class="kpi-label">Total Dockets Completed</div>
-      <div class="kpi-value" id="kpiDockets">–</div>
+    <div class="kpi-card kpi-emerald">
+      <div class="kpi-icon">📦</div>
+      <div class="kpi-body">
+        <div class="kpi-label">Total Dockets Completed</div>
+        <div class="kpi-value" id="kpiDockets">–</div>
+      </div>
     </div>
-    <div class="kpi-card">
-      <div class="kpi-label">Total Time Taken (Hrs)</div>
-      <div class="kpi-value" id="kpiTimeTaken">–</div>
+    <div class="kpi-card kpi-amber">
+      <div class="kpi-icon">⚙️</div>
+      <div class="kpi-body">
+        <div class="kpi-label">Total Time Taken (Hrs)</div>
+        <div class="kpi-value" id="kpiTimeTaken">–</div>
+      </div>
     </div>
-    <div class="kpi-card">
-      <div class="kpi-label">Total Downtime (Hrs)</div>
-      <div class="kpi-value" id="kpiDowntime">–</div>
+    <div class="kpi-card kpi-rose">
+      <div class="kpi-icon">⏸️</div>
+      <div class="kpi-body">
+        <div class="kpi-label">Total Downtime (Hrs)</div>
+        <div class="kpi-value" id="kpiDowntime">–</div>
+      </div>
     </div>
   </section>
 
   <section class="chart-grid">
-    <div class="chart-card">
+    <div class="chart-card accent-indigo">
       <h3>Completed Dockets Qty &amp; Mins Taken by Day</h3>
       <canvas id="chart1"></canvas>
     </div>
-    <div class="chart-card">
+    <div class="chart-card accent-rose">
       <h3>Daily Downtime (Mins)</h3>
       <canvas id="chart2"></canvas>
     </div>
-    <div class="chart-card">
+    <div class="chart-card accent-amber">
       <h3>Avg Process Time (Mins) by Category</h3>
       <canvas id="chart3"></canvas>
     </div>
-    <div class="chart-card wide">
+    <div class="chart-card wide accent-emerald">
       <h3>Completed Qty by Category</h3>
       <canvas id="chart4"></canvas>
     </div>
-    <div class="chart-card wide">
+    <div class="chart-card wide accent-violet">
       <h3>Time Taken by Category (Mins)</h3>
       <canvas id="chart5"></canvas>
     </div>
@@ -86,6 +103,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
   <script src="app.js"></script>
 </body>
 </html>
