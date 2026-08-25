@@ -2,20 +2,18 @@
    Performance Dashboard
    Đọc dữ liệu từ Google Sheet (export CSV) và vẽ 5 biểu đồ + 4 KPI card.
 
-   Cột dữ liệu nguồn (theo file gốc):
-     A: Working Day
-     B: Task Name
-     C: Processed Quantity
-     D: Process Time (minute)
-     E: Avg. Process Time (minute)
+   Cột dữ liệu nguồn (theo tên header, KHÔNG theo vị trí cố định — sheet gốc
+   có 1 cột trống/ẩn giữa "Task Name" và "Processed Quantity" nên không thể
+   đọc theo A,B,C,D,E cứng):
+     Working Day | Task Name | (có thể có cột trống) | Processed Quantity |
+     Process Time (minute) | Avg. Process Time (minute)
    ========================================================================= */
 
 const CONFIG = {
   // Google Sheet ID lấy từ URL chia sẻ. Sheet phải để chế độ chia sẻ
   // "Anyone with the link" (Viewer) thì export CSV mới truy cập được.
-  // Nếu file có nhiều tab, thêm &gid=<sheet_gid> vào cuối URL.
   sheetId: "18CXE1LS_CgRL6jOm-Uib5jk4WrhXs4IA",
-  gid: "2073632175", // để trống = tab đầu tiên
+  gid: "2073632175", // tab cụ thể lấy từ URL &gid=...; để trống = tab đầu tiên
 
   // Tên các task dùng để tính "Daily Process Time per Docket (Mins)"
   // = SUM(Avg. Process Time) cho các task này, theo từng ngày/kỳ.
@@ -82,22 +80,52 @@ function colorForTask(taskName) {
 function pad2(n) { return String(n).padStart(2, "0"); }
 
 // Parse a date value coming from the sheet. Handles ISO (YYYY-MM-DD),
-// US format (M/D/YYYY) and native-Date-parseable strings.
+// US numeric format (M/D/YYYY) and text formats like "Nov 26, 2025"
+// (native Date parser handles the latter directly).
 function parseSheetDate(value) {
   if (!value) return null;
   const v = String(value).trim();
+  if (!v) return null;
 
   let m = v.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
   if (m) return new Date(+m[1], +m[2] - 1, +m[3]);
 
   m = v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-  if (m) {
-    // Sheet sample data (e.g. 11/26/2025) is Month/Day/Year.
-    return new Date(+m[3], +m[1] - 1, +m[2]);
-  }
+  if (m) return new Date(+m[3], +m[1] - 1, +m[2]); // M/D/Y
 
-  const d = new Date(v);
+  const d = new Date(v); // handles "Nov 26, 2025", "2025-11-26T00:00:00", etc.
   return isNaN(d) ? null : d;
+}
+
+// Find the real column indices by matching header TEXT instead of a fixed
+// A/B/C/D/E position — the source sheet has a blank/hidden column between
+// "Task Name" and "Processed Quantity", which would otherwise shift every
+// numeric column by one.
+function buildColumnMap(headerRow) {
+  const norm = (s) => (s || "").toString().trim().toLowerCase();
+  const findIdx = (must, mustNot = []) =>
+    headerRow.findIndex((h) => {
+      const n = norm(h);
+      return n && must.every((p) => n.includes(p)) && !mustNot.some((p) => n.includes(p));
+    });
+
+  const byHeader = {
+    date: findIdx(["working day"]),
+    task: findIdx(["task name"]),
+    qty: findIdx(["processed quantity"]),
+    avg: findIdx(["avg"]),
+    time: findIdx(["process time"], ["avg"]),
+  };
+
+  if (Object.values(byHeader).every((i) => i !== -1)) return byHeader;
+
+  // Fallback: assume column ORDER date, task, qty, time, avg among the
+  // non-blank header cells (skips hidden/blank spacer columns automatically).
+  const nonEmpty = headerRow
+    .map((h, i) => ({ h: norm(h), i }))
+    .filter((c) => c.h);
+  const [date, task, qty, time, avg] = nonEmpty.map((c) => c.i);
+  return { date, task, qty, time, avg };
 }
 
 function periodKey(date, basis) {
@@ -135,20 +163,24 @@ async function loadData() {
 
     const parsed = Papa.parse(csvText, { skipEmptyLines: true });
     const rows = parsed.data;
+    if (rows.length < 2) throw new Error("Sheet không có dữ liệu.");
 
-    // Detect header row (first row) then map by position: A,B,C,D,E
+    const colMap = buildColumnMap(rows[0]);
+    if (Object.values(colMap).some((i) => i === undefined || i === -1)) {
+      throw new Error("Không xác định được cột dữ liệu — kiểm tra lại header của sheet.");
+    }
+
     RAW_ROWS = rows.slice(1)
-      .map((r) => {
-        const date = parseSheetDate(r[0]);
-        const task = (r[1] || "").trim();
-        const qty = parseFloat(r[2]) || 0;
-        const time = parseFloat(r[3]) || 0;
-        const avg = parseFloat(r[4]) || 0;
-        return { date, task, qty, time, avg };
-      })
+      .map((r) => ({
+        date: parseSheetDate(r[colMap.date]),
+        task: (r[colMap.task] || "").trim(),
+        qty: parseFloat(r[colMap.qty]) || 0,
+        time: parseFloat(r[colMap.time]) || 0,
+        avg: parseFloat(r[colMap.avg]) || 0,
+      }))
       .filter((r) => r.date && r.task);
 
-    if (RAW_ROWS.length === 0) throw new Error("Không đọc được dữ liệu hợp lệ từ sheet.");
+    if (RAW_ROWS.length === 0) throw new Error("Không đọc được dòng dữ liệu hợp lệ nào từ sheet.");
 
     initDateRangeInputs();
     statusEl.textContent = `Đã tải ${RAW_ROWS.length} dòng · cập nhật lúc ${new Date().toLocaleTimeString()}`;
@@ -156,8 +188,8 @@ async function loadData() {
   } catch (err) {
     console.error(err);
     statusEl.innerHTML =
-      `Lỗi tải dữ liệu: ${err.message}. Kiểm tra sheet đã bật chia sẻ "Anyone with the link" ` +
-      `và <code>CONFIG.sheetId</code> trong js/app.js.`;
+      `Lỗi tải dữ liệu: ${err.message}. Kiểm tra sheet đã bật chia sẻ "Anyone with the link", ` +
+      `<code>CONFIG.sheetId</code>/<code>CONFIG.gid</code> trong app.js, và console (F12) để xem chi tiết.`;
   }
 }
 
@@ -193,7 +225,6 @@ function filteredRows() {
 // Aggregation
 // ---------------------------------------------------------------------------
 function aggregate(rows, basis) {
-  // periodTotals: key -> { avgSumByTask: Map, qtySumByTask: Map, timeSumByTask: Map }
   const periods = new Map();
 
   rows.forEach((r) => {
@@ -222,27 +253,22 @@ function sumForTaskList(bucketMap, taskList) {
 // ---------------------------------------------------------------------------
 // KPIs
 // ---------------------------------------------------------------------------
-function renderKPIs(rows, periods, keys, basis) {
-  // Avg Mins Taken / Docket = average of "Daily Process Time per Docket"
-  // (sum of Avg.Process Time for the 4 core tasks) across the selected periods.
+function renderKPIs(rows, periods, keys) {
   const perPeriodDocketTime = keys.map((k) => sumForTaskList(periods.get(k).avgByTask, CONFIG.avgTimeTaskList));
   const avgMins = perPeriodDocketTime.length
     ? perPeriodDocketTime.reduce((a, b) => a + b, 0) / perPeriodDocketTime.length
     : 0;
 
-  // Total Dockets Completed = sum of Processed Quantity where task = docketTaskName
   const docketKey = normalizeTaskName(CONFIG.docketTaskName);
   const totalDockets = rows
     .filter((r) => normalizeTaskName(r.task) === docketKey)
     .reduce((a, r) => a + r.qty, 0);
 
-  // Total Time Taken (Hrs) = sum(Process Time) for all tasks except Downtime, /60
   const downtimeKey = normalizeTaskName(CONFIG.downtimeTaskName);
   const totalTimeMins = rows
     .filter((r) => normalizeTaskName(r.task) !== downtimeKey)
     .reduce((a, r) => a + r.time, 0);
 
-  // Total Downtime (Hrs) = sum(Process Time) where task = Downtime, /60
   const totalDowntimeMins = rows
     .filter((r) => normalizeTaskName(r.task) === downtimeKey)
     .reduce((a, r) => a + r.time, 0);
@@ -302,7 +328,7 @@ function renderChart1(periods, keys, labels) {
     options: baseOptions({
       scales: {
         x: { grid: { display: false } },
-        y: { beginAtZero: true, position: "left", title: { display: false } },
+        y: { beginAtZero: true, position: "left" },
         y1: { beginAtZero: true, position: "right", grid: { drawOnChartArea: false } },
       },
     }),
@@ -394,7 +420,7 @@ function renderAll() {
   const keys = sortedPeriodKeys(periods.keys());
   const labels = keys.map((k) => periodLabel(k, BASIS));
 
-  renderKPIs(rows, periods, keys, BASIS);
+  renderKPIs(rows, periods, keys);
   renderChart1(periods, keys, labels);
   renderChart2(periods, keys, labels);
   renderChart3(periods, keys, labels);
